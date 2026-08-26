@@ -29,8 +29,14 @@ def fetch_results():
             "Chrome/124.0.0.0 Safari/537.36"
         )
     }
-    resp = requests.get(URL, headers=headers, timeout=30)
-    resp.raise_for_status()
+    try:
+        resp = requests.get(URL, headers=headers, timeout=30)
+        resp.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        # Site is temporarily down/slow/blocking us. Don't crash --
+        # just skip this run quietly and try again next scheduled run.
+        print(f"Site unreachable this run ({e}). Skipping, will retry next run.")
+        return None
     soup = BeautifulSoup(resp.text, "html.parser")
 
     results = []
@@ -86,6 +92,9 @@ def notify(new_items):
 
 def main():
     results = fetch_results()
+    if results is None:
+        # Site was unreachable this run -- exit cleanly, no failure email.
+        sys.exit(0)
     if not results:
         print("Warning: no results parsed from page. Site structure may have changed.")
         sys.exit(0)
